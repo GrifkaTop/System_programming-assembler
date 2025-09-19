@@ -1,0 +1,35 @@
+gdb) disassemble _start
+Dump of assembler code for function _start:
+   0x08049021 <+0>:     mov    $0x4,%eax
+   0x08049026 <+5>:     mov    $0x1,%ebx
+   0x0804902b <+10>:    mov    $0x8049000,%ecx
+   0x08049030 <+15>:    mov    $0x10,%edx
+   0x08049035 <+20>:    int    $0x80
+   0x08049037 <+22>:    mov    $0x4,%eax
+   0x0804903c <+27>:    mov    $0x1,%ebx
+   0x08049041 <+32>:    mov    $0x804900b,%ecx
+   0x08049046 <+37>:    mov    $0xb,%edx
+   0x0804904b <+42>:    int    $0x80
+   0x0804904d <+44>:    mov    $0x4,%eax
+   0x08049052 <+49>:    mov    $0x1,%ebx
+   0x08049057 <+54>:    mov    $0x8049015,%ecx
+   0x0804905c <+59>:    mov    $0xc,%edx
+--Type <RET> for more, q to quit, c to continue without paging--
+
+
+(gdb) disassemble _start
+Dump of assembler code for function _start:
+   0x0000000000001060 <+0>:     endbr64
+   0x0000000000001064 <+4>:     xor    %ebp,%ebp
+   0x0000000000001066 <+6>:     mov    %rdx,%r9
+   0x0000000000001069 <+9>:     pop    %rsi
+   0x000000000000106a <+10>:    mov    %rsp,%rdx
+   0x000000000000106d <+13>:    and    $0xfffffffffffffff0,%rsp
+   0x0000000000001071 <+17>:    push   %rax
+   0x0000000000001072 <+18>:    push   %rsp
+   0x0000000000001073 <+19>:    xor    %r8d,%r8d
+   0x0000000000001076 <+22>:    xor    %ecx,%ecx
+   0x0000000000001078 <+24>:    lea    0xca(%rip),%rdi        # 0x1149 <main>
+   0x000000000000107f <+31>:    call   *0x2f53(%rip)        # 0x3fd8
+   0x0000000000001085 <+37>:    hlt
+End of assembler dump.

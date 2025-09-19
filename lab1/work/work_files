@@ -1,0 +1,52 @@
+#1
+mkdir "Лабораторная работа №1!"
+mkdir GAT
+
+#2
+chmod u=rwx,g=rwx,o=w "Лабораторная работа №1!"
+chmod u=w GAT/
+
+#3
+touch "Text @1" "Text \$2" "Text #3"
+
+#4
+echo -e 'Птица говорун отличается умом и сообразительностью!\nОтличается умом, отличается сообразительностью...' > "Text @1"
+
+#5
+cat "Text @1" > "Text \$2"
+
+#6
+mv "Text \$2" "Лабораторная работа №1!"
+chmod u=rwx GAT/
+cp "Text @1" GAT/
+
+#7
+gzip "Text @1" "Text #3"
+tar -cf MyAchiv.tar "Text @1.gz" "Text #3.gz"
+
+#8
+gzip -d "Text @1.gz" "Text #3.gz"
+head -n 1 "Text @1" > "Text #3"
+echo "Будь осторожен! Преступник вооружен!" >> "Text #3"
+
+#9
+cd GAT/
+tac "Text @1" > Result_one
+
+#10
+mv Result_one Result_two
+
+#11
+cd ../"Лабораторная работа №1!"
+ls ../GAT/T* > Result_3
+for item in ../GAT/T*; do
+    if [ -f "$item" ]; then
+        cat "$item" >> Result_3
+    elif [ -d "$item" ]; then
+        ls -la "$item" >> Result_3
+    fi
+done
+
+#12
+uname -a >> Result_3
+date >> Result_3

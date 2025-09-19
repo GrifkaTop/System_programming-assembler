@@ -1,0 +1,7 @@
+fasm hi.asm
+ld -m elf_i386 hi.o -o hi
+./hi
+
+
+gcc c_version.c -o c_version.
+./c_version
