@@ -1,0 +1,13 @@
+# 1. Компиляця
+fasm hello.asm hello.o
+ld -m elf_i386 hello.o -o hello
+./fasm
+
+# 2. Компиляция C версии
+gcc -m32 C_hello.c -o C_hello
+
+# 3. Дизассемблирование через GDB
+echo -e "\n--- ASM Version ---\n" > Disassemble
+gdb -q ./hello -batch -ex "set disassembly-flavor intel" -ex "disassemble _start" >> Disassemble
+echo -e "\n--- C Version ---\n" >> Disassemble
+gdb -q C_hello -batch -ex "set disassembly-flavor intel" -ex "disassemble main" >> Disassemblels

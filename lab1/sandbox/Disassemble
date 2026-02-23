@@ -1,0 +1,46 @@
+
+--- ASM Version ---
+
+Dump of assembler code for function _start:
+   0x08049000 <+0>:	mov    eax,0x4
+   0x08049005 <+5>:	mov    ebx,0x1
+   0x0804900a <+10>:	mov    ecx,0x804a000
+   0x0804900f <+15>:	mov    edx,0x20
+   0x08049014 <+20>:	int    0x80
+   0x08049016 <+22>:	mov    eax,0x1
+   0x0804901b <+27>:	xor    ebx,ebx
+   0x0804901d <+29>:	int    0x80
+End of assembler dump.
+
+--- C Version ---
+
+
+This GDB supports auto-downloading debuginfo from the following URLs:
+  <https://debuginfod.ubuntu.com>
+Enable debuginfod for this session? (y or [n]) [answered N; input not from terminal]
+Debuginfod has been disabled.
+To make this setting permanent, add 'set debuginfod enabled off' to .gdbinit.
+Dump of assembler code for function main:
+   0x0000118d <+0>:	lea    ecx,[esp+0x4]
+   0x00001191 <+4>:	and    esp,0xfffffff0
+   0x00001194 <+7>:	push   DWORD PTR [ecx-0x4]
+   0x00001197 <+10>:	push   ebp
+   0x00001198 <+11>:	mov    ebp,esp
+   0x0000119a <+13>:	push   ebx
+   0x0000119b <+14>:	push   ecx
+   0x0000119c <+15>:	call   0x11c9 <__x86.get_pc_thunk.ax>
+   0x000011a1 <+20>:	add    eax,0x2e37
+   0x000011a6 <+25>:	sub    esp,0xc
+   0x000011a9 <+28>:	lea    edx,[eax-0x1fd0]
+   0x000011af <+34>:	push   edx
+   0x000011b0 <+35>:	mov    ebx,eax
+   0x000011b2 <+37>:	call   0x1040 <puts@plt>
+   0x000011b7 <+42>:	add    esp,0x10
+   0x000011ba <+45>:	mov    eax,0x0
+   0x000011bf <+50>:	lea    esp,[ebp-0x8]
+   0x000011c2 <+53>:	pop    ecx
+   0x000011c3 <+54>:	pop    ebx
+   0x000011c4 <+55>:	pop    ebp
+   0x000011c5 <+56>:	lea    esp,[ecx-0x4]
+   0x000011c8 <+59>:	ret
+End of assembler dump.
