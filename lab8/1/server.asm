@@ -22,7 +22,6 @@ section '.data' writable
         dd 0          
         dq 0
     
-    
 
 ;-------------------------------- ДАННЫЕ ------------------ --------------
 section '.bss' writable
@@ -261,7 +260,7 @@ win_p2: ; обработчик победы P2
 
 draw_game: ; обработчик ничьей
     mov rax, 1
-    mov rdi, [sock_p1]
+    mov rdi, [sock_p1] 
     lea rsi, [net_msg_draw]
     mov rdx, 8          
     syscall

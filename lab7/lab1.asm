@@ -1,7 +1,7 @@
 format ELF64
 public _start
 
-include 'lib.asm' ; Должны быть функции print_str, input_keyboard, print_int
+include 'lib.asm' 
 
 ; ----------------------------------Данные и константы-------------------------------
 section '.data' writeable

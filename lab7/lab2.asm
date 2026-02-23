@@ -10,7 +10,7 @@ include 'task_quantile.inc'
 include 'task_primes.inc'
 
 ; --- Настройка размера массива ---
-ELEMENT_COUNT = 100 
+ELEMENT_COUNT = 10
 
 ;----------------------------------Данные и константы-------------------------------
 section '.data' writeable
@@ -53,6 +53,7 @@ _start:
     mov [rsi], rdx      
     add rsi, 8
     loop .make_natural
+
 .skip_init:
 
     ; 2. Создание 4-х дочерних процессов
