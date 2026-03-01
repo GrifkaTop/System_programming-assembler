@@ -1,6 +1,7 @@
 ;SERVER IP: 0.0.0.0
 format ELF64
 public _start
+
 ; ------------------------------- ДАННЫЕ сообщения------------------ --------------
 section '.data' writable
     msg_wait_1      db 0, "Первый игрок подключение (X)...", 10, 0
@@ -17,10 +18,10 @@ section '.data' writable
     newline db 10
 
     server_addr:
-        dw 2 
-        db 0x1F, 0x90  
-        dd 0          
-        dq 0
+        dw 2  
+        db 0x1F, 0x90  ;
+        dd 0      
+        dq 0 ; IP
     
 
 ;-------------------------------- ДАННЫЕ ------------------ --------------
@@ -234,13 +235,13 @@ win_p1: ; обработчик победы P1
     mov rax, 1
     mov rdi, [sock_p1]
     lea rsi, [net_msg_win]
-    mov rdx, 10 
+    mov rdx, 128
     syscall
     
     mov rax, 1
     mov rdi, [sock_p2]
     lea rsi, [net_msg_lose]
-    mov rdx, 11
+    mov rdx, 128
     syscall
     jmp game_over       
 
@@ -248,13 +249,13 @@ win_p2: ; обработчик победы P2
     mov rax, 1
     mov rdi, [sock_p1]
     lea rsi, [net_msg_lose]
-    mov rdx, 11
+    mov rdx, 128
     syscall
     
     mov rax, 1
     mov rdi, [sock_p2]
     lea rsi, [net_msg_win]
-    mov rdx, 10
+    mov rdx, 128
     syscall
     jmp game_over
 
@@ -262,13 +263,13 @@ draw_game: ; обработчик ничьей
     mov rax, 1
     mov rdi, [sock_p1] 
     lea rsi, [net_msg_draw]
-    mov rdx, 8          
+    mov rdx, 128        
     syscall
 
     mov rax, 1
     mov rdi, [sock_p2]
     lea rsi, [net_msg_draw]
-    mov rdx, 8
+    mov rdx, 128
     syscall
     jmp game_over
 
@@ -291,7 +292,7 @@ section '.text' executable
     map_len equ $ - map_template
 
     ; Смещение символов внутри шаблона относительно начала
-    cell_offsets: db 16, 20, 24, 30, 34, 38, 44, 48, 52
+    cell_offsets: db 16, 20, 24, 44, 48, 52, 72, 76, 80
 
 create_map:
     push rbp

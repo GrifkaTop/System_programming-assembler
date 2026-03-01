@@ -208,7 +208,7 @@ draw_point: ; Рисует символ в (temp_x, temp_y) с текущим ц
     
     ; Обработка нажатых клавиш
     cmp rax, 'l'        
-    je exit_prog
+    je exit_prog 
     cmp rax, 'p'        
     jne .skip_speed 
     call do_speed_change

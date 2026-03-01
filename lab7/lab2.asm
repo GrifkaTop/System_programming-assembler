@@ -1,284 +1,232 @@
 format ELF64
 public _start
 
-; --- Константы ---
-SYS_WRITE   equ 1
-SYS_MMAP    equ 9
-SYS_CLONE   equ 56
-SYS_EXIT    equ 60
-SYS_WAIT4   equ 61
+; --- Настройка размера массива ---
+ARRAY_SIZE = 669 
 
-PROT_RW     equ 0x3
-MAP_ANON    equ 0x22
-CLONE_VM_SH equ 0x111 
-
-; ПАРАМЕТРЫ ВАРИАНТА
-ARRAY_SIZE  equ 669       ; Ваш размер массива
-STACK_SIZE  equ 65536     ; Размер стека для каждого потока в куче 64к
-
-; --- Сегменты данных и кода ---
+; -------данные--------------
 section '.data' writeable
-    heap_ptr dq 0
-    msg1 db "1. Самая частая цифра: ", 0
-    msg2 db 10, "2. 5-й элемент: ", 0
-    msg3 db 10, "3. 0.75 квантиль: ", 0
-    msg4 db 10, "4. Кол-во простых чисел: ", 0
+    array    rq ARRAY_SIZE
+    digit_counters rb 10
+    delay    dq 1, 0
+    buffer   rb 32
+    buffer_end = $ - 1
+
+    msg1 db "Наиболее часто встречающаяся цифра:"
+    msg1_len = $ - msg1
+    msg2 db "5 число: "
+    msg2_len = $ - msg2
+    msg3 db "0.75 квалитет: "
+    msg3_len = $ - msg3
+    msg4 db "Количество простых: "
+    msg4_len = $ - msg4
+
+    ; Свои стеки для каждого треда
+    stack1 rb 4096
+    stack1_end:
+    stack2 rb 4096
+    stack2_end:
+    stack3 rb 4096
+    stack3_end:
+    stack4 rb 4096
+    stack4_end:
 
 section '.text' executable
-_start:
-    ; 1. Выделение кучи под массив (669 элементов * 8 байт)
-    mov rax, SYS_MMAP
-    xor rdi, rdi
-    mov rsi, ARRAY_SIZE * 8
-    mov rdx, PROT_RW
-    mov r10, MAP_ANON
-    syscall
-    mov [heap_ptr], rax
 
-    ; Заполнение случайными числами (0-999)
+_start:
+    ; 1. Заполнение "кучи" (массива) случайными данными
     mov rcx, ARRAY_SIZE
-    mov rdi, [heap_ptr]
-.gen:
-    rdrand rax      ; случайно числов в rax
-    jnc .gen        ; если не сработал
-    xor rdx, rdx    ; Очистим rdx для деления
-    mov rbx, 1000   ; /1000
-    div rbx         ; rax = rax / 1000, rdx = rax % 1000
-    mov [rdi], rdx  ; Сохраняем число в массив
+    mov rdi, array
+  .gen:
+    rdrand rax
+    jnc .gen
+    and rax, 0x3FF          ; Ограничим числа до 1023 для удобства
+    mov [rdi], rax
     add rdi, 8
     loop .gen
 
-    ; --- СОРТИРОВКА  ---
+    ; 2. Сортировка (необходима для квантиля и поиска 5-го числа)
     mov rcx, ARRAY_SIZE
-    dec rcx         ; Для корректной работы j+1
-.out:
+  .sort_1:
     push rcx
-    xor rbx, rbx
-    mov rsi, [heap_ptr]
-.in:
-    mov rax, [rsi + rbx*8]
-    mov rdx, [rsi + rbx*8 + 8]
-    cmp rax, rdx
-    jle .no_swp
-    mov [rsi + rbx*8], rdx      ; Сохраняем меньшее число
-    mov [rsi + rbx*8 + 8], rax  ; Сохраняем большее число
-.no_swp:
-    inc rbx
-    cmp rbx, rcx
-    jl .in
+    mov rsi, array
+    mov rcx, ARRAY_SIZE - 1
+  .sort_2:
+    mov rax, [rsi]
+    mov rbx, [rsi+8]
+    cmp rax, rbx
+    jbe .no_swap
+    mov [rsi], rbx
+    mov [rsi+8], rax
+  .no_swap:
+    add rsi, 8
+    loop .sort_2
     pop rcx
-    loop .out
+    loop .sort_1
 
-    ; 2. Запуск потоков
-    mov rsi, task_frequent_digit
-    call spawn_thread
-    mov rsi, task_fifth_after_min
-    call spawn_thread
-    mov rsi, task_quantile
-    call spawn_thread
-    mov rsi, task_count_primes
+    ; 3. Запуск Тредов (клонов)
+    ; Параметры spawn_thread: (адрес функции, адрес вершины стека)
+    
+    mov rdx, task_most_freq
+    mov rsi, stack1_end
     call spawn_thread
 
-    ; 3. Родитель ждет 4 завершения
-    mov rcx, 4
-.wait:
-    push rcx
-    mov rax, SYS_WAIT4
-    mov rdi, -1 
-    xor rsi, rsi 
-    xor rdx, rdx
-    xor r10, r10 
+    mov rdx, task_fifth_min
+    mov rsi, stack2_end
+    call spawn_thread
+
+    mov rdx, task_quantile
+    mov rsi, stack3_end
+    call spawn_thread
+
+    mov rdx, task_primes
+    mov rsi, stack4_end
+    call spawn_thread
+
+    ; Родительский процесс просто ждет (sleep)
+    mov rax, 35
+    mov rdi, delay
+    xor rsi, rsi
     syscall
-    pop rcx
-    loop .wait
 
-    ; Завершение родителя
-    mov rax, SYS_EXIT
+    mov rax, 60             ; Выход из основной программы
     xor rdi, rdi
     syscall
 
-; --- Хелпер создания потока ---
-spawn_thread: 
-    push rsi
-    mov rax, SYS_MMAP    ; Стек потока тоже выделяем в куче
-    xor rdi, rdi
-    mov rsi, STACK_SIZE
-    mov rdx, PROT_RW
-    mov r10, MAP_ANON
-    syscall
-    lea rsi, [rax + STACK_SIZE]
-    pop r8
-    mov rax, SYS_CLONE
-    mov rdi, CLONE_VM_SH
+; --- Реализация системного вызова CLONE ---
+spawn_thread:
+    ; Флаги CLONE_VM | CLONE_FS | CLONE_FILES | CLONE_SIGHAND (0x0f00)
+    ; Они заставляют процесс работать как поток (тред) в общей памяти
+    mov rdi, 0x0f00
+    mov rax, 56             ; sys_clone
     syscall
     test rax, rax
-    jz .child
-    ret
+    jz .child               ; Если RAX=0, прыгаем в код потока
+    ret                     ; Иначе возвращаемся в родителя
 .child:
-    jmp r8
+    call rdx                ; Выполняем подзадачу
+    mov rax, 60             ; Поток завершается сам через exit
+    xor rdi, rdi
+    syscall
 
-
-; ------------------------ ЗАДАЧИ ДЛЯ ПОТОКОВ --------------------------
-; 1. Часто встречающаяся цифра
-task_frequent_digit:
-    push rbp
-    mov rbp, rsp
-    sub rsp, 80         ; Локальные счетчики на стеке потока (10 цифр * 8 байт)
-    
-    ; Обнуляем счетчики
-    mov rdi, rsp
+; 1. подсчет цифр
+task_most_freq:
+    ; (Считаем цифры через digit_counters)
+    mov rdi, digit_counters
     mov rcx, 10
     xor rax, rax
-    rep stosq           ; Заполняем нулями область [rsp..rsp+79] 
-
-    mov rsi, [heap_ptr]
+    rep stosb
     mov rcx, ARRAY_SIZE
-.l1: 
-    mov rax, [rsi]      ; Берем число из массива в куче
-    add rsi, 8
-    push rcx            ; Сохраняем счетчик цикла
-.l2: 
+    mov rsi, array
+  .l:
+    mov rax, [rsi]
+  .d:
     xor rdx, rdx
     mov rbx, 10
-    div rbx             ; Выделяем цифру в rdx
-    inc qword [rbp - 80 + rdx*8] ; Увеличиваем счетчик этой цифры
+    div rbx
+    inc byte [digit_counters + rdx]
     test rax, rax
-    jnz .l2             ; Пока число не кончится
-    pop rcx             ; Возвращаем счетчик цикла
-    loop .l1
-
-    ; Ищем максимум среди 10 счетчиков
-    xor rbx, rbx        ; Индекс (цифра)
-    xor rdx, rdx        ; Максимальное значение
-    xor rcx, rcx
-.m: 
-    mov rax, [rbp - 80 + rcx*8]
-    cmp rax, rdx
-    jle .n
-    mov rdx, rax
-    mov rbx, rcx        ; rbx = самая частая цифра
-.n: 
-    inc rcx
-    cmp rcx, 10
-    jl .m
-    
-    push rbx            
-    mov rdi, msg1
-    call print_str
-    pop rax            
-    call print_int
-    
-    leave               
-    jmp thread_exit
-
-; 2. Пятое после минимального 
-task_fifth_after_min:
-    mov rsi, [heap_ptr]
-    mov rax, [rsi + 5*8]
-    
-    push rax          
-    mov rdi, msg2
-    call print_str
-    pop rax
-
-    call print_int
-    jmp thread_exit
-
-; 3. 0.75 квантиль 
-task_quantile:
-    mov rsi, [heap_ptr]
-    ; 669 * 3 / 4 = 501
-    mov rax, [rsi + 501*8]
-    
-    push rax           
-    mov rdi, msg3
-    call print_str
-    pop rax
-    
-    call print_int
-    jmp thread_exit
-
-; 4. Количество простых
-task_count_primes:
-    mov rsi, [heap_ptr]
-    mov rcx, ARRAY_SIZE
-    xor r12, r12
-.p: mov rax, [rsi]
-    push rcx
-    call check_prime
-    pop rcx
-    add r12, rax
+    jnz .d
     add rsi, 8
-    loop .p
-    
-    mov rax, r12 
+    loop .l
+    ; Поиск макс. цифры
+    xor rbx, rbx
+    xor rdx, rdx
+    mov rcx, 10
+  .m:
+    mov al, [digit_counters + rcx - 1]
+    cmp al, dl
+    jb .n
+    mov dl, al
+    mov rbx, rcx
+    dec rbx
+  .n:
+    loop .m
+    mov rsi, msg1
+    mov rdx, msg1_len
+    mov rax, rbx
+    call print_result
+    ret
 
-    push rax
-    mov rdi, msg4
-    call print_str
-    pop rax
 
-    call print_int
-    jmp thread_exit
+; 2. 5-ый элемент
+task_fifth_min:
+    mov rsi, msg2
+    mov rdx, msg2_len
+    mov rax, [array + 5*8]
+    call print_result
+    ret
 
-thread_exit:
-    mov rax, SYS_EXIT
-    xor rdi, rdi
-    syscall
+; 3. 0.75 квантиль
+task_quantile:
+    mov rsi, msg3
+    mov rdx, msg3_len
+    mov rax, [array + (ARRAY_SIZE * 75 / 100) * 8]
+    call print_result
+    ret
 
-; --- Проверка простоты ---
-check_prime:
+; 4. подсчет количества простых чисел
+task_primes:
+    xor r12, r12
+    mov rcx, ARRAY_SIZE
+    mov rsi, array
+  .p_l:
+    mov rax, [rsi]
     cmp rax, 2
-    jl .no
-    je .yes
+    jb .next
     mov rbx, 2
-.c: xor rdx, rdx
-    mov r8, rax
+  .check:
+    xor rdx, rdx
+    mov rax, [rsi]
     div rbx
     test rdx, rdx
-    jz .no
+    jz .is_div
     inc rbx
     mov rax, rbx
     mul rbx
-    cmp rax, r8
-    mov rax, r8
-    jle .c
-.yes: mov rax, 1
-    ret
-.no: xor rax, rax
+    cmp rax, [rsi]
+    jbe .check
+    inc r12
+    jmp .next
+  .is_div:
+    mov rax, [rsi]
+    cmp rax, rbx
+    jne .next
+    inc r12
+  .next:
+    add rsi, 8
+    loop .p_l
+    mov rsi, msg4
+    mov rdx, msg4_len
+    mov rax, r12
+    call print_result
     ret
 
-; --- Функции вывода ---
-print_str:
-    mov rsi, rdi
-    xor rdx, rdx
-.l: cmp byte [rsi+rdx], 0
-    je .o
-    inc rdx
-    jmp .l
-.o: mov rax, SYS_WRITE
+; --- Функции печати ---
+
+print_result:
+    push rax
+    mov rax, 1
     mov rdi, 1
     syscall
-    ret
-
-print_int:
-    sub rsp, 40
+    pop rax
+    ; Вывод числа
     mov rbx, 10
-    lea rdi, [rsp + 38]
-    xor rcx, rcx
-.c: xor rdx, rdx
+    mov rdi, buffer_end
+    mov byte [rdi], 10
+  .conv:
+    dec rdi
+    xor rdx, rdx
     div rbx
     add dl, '0'
     mov [rdi], dl
-    dec rdi
-    inc rcx
     test rax, rax
-    jnz .c
-    inc rdi
+    jnz .conv
     mov rsi, rdi
-    mov rdx, rcx
-    mov rax, SYS_WRITE
+    mov rdx, buffer_end
+    sub rdx, rsi
+    inc rdx
+    mov rax, 1
     mov rdi, 1
     syscall
-    add rsp, 40
     ret

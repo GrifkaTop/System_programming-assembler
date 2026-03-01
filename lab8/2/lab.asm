@@ -1,123 +1,125 @@
 format ELF64
-public _start
 
-; Лабораторная работа 8, задание 2
-; Вычисление суммы ряда и сравнение с эталоном для различных x и epsilon
-; Ряд: Sum = Σ (-1)^n * cos(nx) / n^2, n=1..∞
-; Эталон: f(x) = 0.25 * (x^2 - pi^2/3)
-; сначала выводим эталон
-; Выводим 5 значений п/5, .... до п/1
-; все это записываем в таблицу
-; также в таблице записать количество членов ряда, необходимых для достижения заданной точности (epsilon)
-; точность достигается, когда |Sum - f(x)| < epsilon
-
-extrn printf
+public main
+extrn printf 
 extrn exit
-
+; -------------------- ДАННЫЕ -------------------------------
 section '.data' writeable
-    ; Данные без выравнивания
-    pi          dq 3.141592653589793
-    epsilon     dq 0.0001
-    three       dq 3.0
-    quarter     dq 0.25
-    minus_one   dq -1.0
-    ; Маска для модуля (сброс 63-го бита)
-    abs_mask    dq 0x7FFFFFFFFFFFFFFF, 0x7FFFFFFFFFFFFFFF
-    
-    x_values    dq 0.6283185307179586, 1.2566370614359172, \
-                   1.8849555921538759, 2.5132741228718345, 3.141592653589793
-    
-    current_x   dq 0.0
-    head_fmt    db 10, '   x   |  f(x) (Ref) |  Sum (Series) | Iterations', 10, \
-                   '-------|-------------|---------------|-----------', 10, 0
-    row_fmt     db '%.4f |   %.6f  |    %.6f   |    %ld', 10, 0
+    ; Форматы для вывода таблицы
+    fmt_header db "     x     |    f(x)    |    Sum     | n", 10
+               db "------------------------------------------", 10, 0
+    fmt_row    db "%10.5f | %10.5f | %10.5f | %d", 10, 0
+
+    eps        dq 0.00001  ; Заданная точность (epsilon)
+    three      dq 3.0 
+    one_fourth dq 0.25
+    five       dq 5.0
+
+    x_step     dq 0.0
+    x_val      dq 0.0
+    ref_val    dq 0.0
+    sum_val    dq 0.0
+    n_val      dq 0.0
+
+    int_n      dd 0
+    step_count dd 0
 
 section '.text' executable
-_start:
-    sub rsp, 24         ; Резервируем место на стеке (выравнивание + буфер)
 
-    ; Печать заголовка
-    mov rdi, head_fmt
-    xor rax, rax
+main:
+    ; Выравнивание стека для корректного вызова C-функций (System V ABI)
+    and rsp, -16
+
+    ; 1. Вывод заголовка таблицы
+    lea rdi, [fmt_header]
+    xor eax, eax
     call printf
 
-    mov r12, 0          ; Индекс x (0..4)
+    ; 2. Вычисление шага: x_step = pi / 5
+    fldpi
+    fdiv [five]
+    fstp [x_step]
 
-main_loop:
-    cmp r12, 5
-    je all_done
+    ; Инициализация x = pi / 5
+    fld [x_step]
+    fstp [x_val]
 
-    movsd xmm0, [x_values + r12*8]
-    movsd [current_x], xmm0
+    mov [step_count], 1
 
-    ; 1. f(x) = 0.25 * (x^2 - pi^2/3)
-    movsd xmm1, [pi]
-    mulsd xmm1, xmm1
-    divsd xmm1, [three]
-    
-    movsd xmm2, [current_x]
-    mulsd xmm2, xmm2
-    subsd xmm2, xmm1
-    mulsd xmm2, [quarter]
-    movsd xmm10, xmm2   ; xmm10 = Эталон
+.loop_x:
+    ; --- Вычисление эталона: f(x) = 0.25 * (x^2 - pi^2 / 3) ---
+    fld [x_val]
+    fmul st0, st0      ; st0 = x^2
+    fldpi
+    fmul st0, st0      ; st0 = pi^2, st1 = x^2
+    fdiv [three]       ; st0 = pi^2/3, st1 = x^2
+    fsubp st1, st0     ; st0 = x^2 - pi^2/3
+    fmul [one_fourth]  ; st0 = 0.25 * (x^2 - pi^2/3)
+    fstp [ref_val]
 
-    ; 2. Ряд: Sum = Σ [(-1)^n * cos(nx)] / n^2
-    pxor xmm11, xmm11   ; xmm11 = Sum
-    mov r13, 1          ; r13 = n
+    ; --- Вычисление суммы ряда ---
+    fldz
+    fstp [sum_val]     ; sum = 0
 
-series_loop:
-    ; Аргумент для cos: n * x
-    cvtsi2sd xmm0, r13
-    mulsd xmm0, [current_x]
-    
-    ; Вычисляем cos(nx) через FPU (стек x87)
-    movsd [rsp], xmm0
-    fld qword [rsp]
-    fcos
-    fstp qword [rsp]
-    movsd xmm1, [rsp]   ; xmm1 = cos(nx)
+    fld1
+    fstp [n_val]       ; n = 1
 
-    ; Делим на n^2
-    mov rax, r13
-    imul rax, rax
-    cvtsi2sd xmm2, rax
-    divsd xmm1, xmm2
+.loop_series:
+    ; Член ряда term = cos(n*x) / n^2
+    fld [n_val]
+    fmul [x_val]
+    fcos               ; st0 = cos(n*x)
 
-    ; Знак (-1)^n. Для n=1 должен быть минус.
-    test r13, 1
-    jz sign_plus
-    mulsd xmm1, [minus_one]
-sign_plus:
-    addsd xmm11, xmm1
+    fld [n_val]
+    fmul st0, st0      ; st0 = n^2, st1 = cos(n*x)
+    fdivp st1, st0     ; st0 = cos(n*x) / n^2
 
-    ; Проверка точности: |Sum - f(x)| < epsilon
-    movsd xmm3, xmm11
-    subsd xmm3, xmm10   ; xmm3 = Sum - f(x)
-    
-    ; БЕЗОПАСНЫЙ МОДУЛЬ (без align 16):
-    movupd xmm4, [abs_mask] ; Используем unaligned загрузку
-    andpd xmm3, xmm4        ; Обнуляем бит знака
-    
-    ucomisd xmm3, [epsilon]
-    jb print_row        ; Выход из цикла, если достигли точности
+    ; Учет знака (-1)^n (если n нечетное — меняем знак)
+    fld [n_val]
+    fistp [int_n]
+    test [int_n], 1
+    jz .even_n
+    fchs               ; Смена знака на минус
 
-    inc r13
-    cmp r13, 1000000    ; Лимит итераций
-    jb series_loop
+.even_n:
+    ; Прибавляем вычисленный член к общей сумме
+    fld st0            ; Дублируем term в стеке FPU
+    fadd [sum_val]
+    fstp [sum_val]     ; sum = sum + term
 
-print_row:
-    mov rdi, row_fmt
-    movsd xmm0, [current_x]
-    movsd xmm1, xmm10
-    movsd xmm2, xmm11
-    mov rsi, r13
-    mov rax, 3
+    ; Проверка достижения точности: |term| < eps
+    fabs               ; st0 = |term|
+    fld [eps]          ; st0 = eps, st1 = |term|
+    fcomip st0, st1    ; Сравниваем eps и |term|, устанавливаем флаги и выталкиваем eps
+    fstp st0           ; Выталкиваем |term| (очистка стека FPU)
+    ja .series_done    ; Если eps > |term|, прерываем цикл ряда
+
+    ;(n++)
+    fld [n_val]
+    fld1
+    faddp
+    fstp [n_val]
+    jmp .loop_series
+
+.series_done:
+    ; --- Форматирование и вывод строки таблицы ---
+    movsd xmm0, qword [x_val]
+    movsd xmm1, qword [ref_val]
+    movsd xmm2, qword [sum_val]
+    lea rdi, [fmt_row]
+    mov esi, [int_n]
+    mov eax, 3         ; Сообщаем printf, что используем 3 регистра XMM
     call printf
 
-    inc r12
-    jmp main_loop
+    ; Переход к следующему значению (x = x + pi/5)
+    fld [x_val]
+    fadd [x_step]
+    fstp [x_val]
 
-all_done:
-    add rsp, 24
-    xor rdi, rdi
+    inc [step_count]
+    cmp [step_count], 5
+    jle .loop_x
+
+    ; Завершение программы
+    xor edi, edi
     call exit
