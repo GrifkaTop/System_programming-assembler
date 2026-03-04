@@ -8,9 +8,9 @@ section '.data' writeable
     ; Форматы для вывода таблицы
     fmt_header db "     x     |    f(x)    |    Sum     | n", 10
                db "------------------------------------------", 10, 0
-    fmt_row    db "%10.5f | %10.5f | %10.5f | %d", 10, 0
+    fmt_row    db "%10.10f | %10.10f | %10.10f | %d", 10, 0
 
-    eps        dq 0.00001  ; Заданная точность (epsilon)
+    eps        dq 0.000000001  ; Заданная точность (epsilon)
     three      dq 3.0 
     one_fourth dq 0.25
     five       dq 5.0

@@ -2,14 +2,16 @@ format ELF64
 public _start
 
 ; --- Настройка размера массива ---
-ARRAY_SIZE = 669 
+ARRAY_SIZE = 10
 
 ; -------данные--------------
 section '.data' writeable
+    space db ' '
+
     array    rq ARRAY_SIZE
     digit_counters rb 10
     delay    dq 1, 0
-    buffer   rb 32
+    buffer   rb 32 ; ! динмаически должен быть..... йоу 
     buffer_end = $ - 1
 
     msg1 db "Наиболее часто встречающаяся цифра:"
@@ -89,6 +91,9 @@ _start:
     xor rsi, rsi
     syscall
 
+    ; вывести массив.
+    call print_array 
+
     mov rax, 60             ; Выход из основной программы
     xor rdi, rdi
     syscall
@@ -136,7 +141,8 @@ task_most_freq:
   .m:
     mov al, [digit_counters + rcx - 1]
     cmp al, dl
-    jb .n
+    jbe .n 
+
     mov dl, al
     mov rbx, rcx
     dec rbx
@@ -203,30 +209,74 @@ task_primes:
     ret
 
 ; --- Функции печати ---
+; Печать всего массива
+print_array:
+    mov r13, ARRAY_SIZE     ; Используем r13, так как syscall портит rcx/r11
+    mov r12, array          ; Используем r12, так как он сохраняется между вызовами
+.loop:
+    mov rax, [r12]
+    call print_number       ; Выводим само число
 
-print_result:
-    push rax
+    ; Вывод пробела
+    mov rax, 1              ; sys_write
+    mov rdi, 1              ; stdout
+    mov rsi, space
+    mov rdx, 1
+    syscall
+
+    add r12, 8
+    dec r13
+    jnz .loop
+
+    ; Перевод строки в конце массива
+    mov byte [buffer], 10
     mov rax, 1
     mov rdi, 1
+    mov rsi, buffer
+    mov rdx, 1
     syscall
-    pop rax
-    ; Вывод числа
+    ret
+
+; Универсальная функция вывода числа из RAX
+print_number:
     mov rbx, 10
     mov rdi, buffer_end
-    mov byte [rdi], 10
-  .conv:
+    mov rcx, 0              ; Счетчик символов
+    
+.conv:
     dec rdi
     xor rdx, rdx
     div rbx
     add dl, '0'
     mov [rdi], dl
+    inc rcx
     test rax, rax
     jnz .conv
-    mov rsi, rdi
-    mov rdx, buffer_end
-    sub rdx, rsi
-    inc rdx
+
+    ; Системный вызов write
+    mov rax, 1              ; sys_write
+    mov rsi, rdi            ; адрес начала строки в буфере
+    mov rdx, rcx            ; количество цифр
+    mov rdi, 1              ; stdout
+    syscall
+    ret
+
+print_result:
+    push rax
+    ; Вывод сообщения (msg1, msg2 и т.д.)
+    mov rax, 1              ; sys_write
+    mov rdi, 1              ; stdout
+    ; rsi и rdx уже загружены перед вызовом print_result
+    syscall
+    
+    pop rax
+    call print_number
+    
+    ; Вывод перевода строки
+    mov byte [buffer], 10
     mov rax, 1
     mov rdi, 1
+    mov rsi, buffer
+    mov rdx, 1
     syscall
     ret
